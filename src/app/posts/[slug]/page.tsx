@@ -3,7 +3,7 @@ import Head from "next/head";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/cjs/styles/prism";
-import { getAllPublished, getSinglePost, PostMetaData } from "@/lib/notion";
+import { getAllPublished, getSinglePost } from "@/lib/notion";
 
 export const revalidate = 60; // 每 60 秒重新驗證 ISR
 
@@ -23,6 +23,12 @@ interface PageProps {
   params: {
     slug: string;
   };
+}
+
+interface MarkdownCodeProps {
+  inline?: boolean;
+  className?: string;
+  children?: React.ReactNode;
 }
 
 export default async function PostPage({ params }: PageProps) {
@@ -50,11 +56,9 @@ export default async function PostPage({ params }: PageProps) {
         </div>
         <ReactMarkdown
           components={{
-            code({ node, className, children, ...props }) {
+            code({ inline, className, children, ...props }: MarkdownCodeProps) {
               const match = /language-(\w+)/.exec(className || "");
-              const isInline = (props as any).inline;
-
-              return !isInline && match ? (
+              return !inline && match ? (
                 <CodeBlock
                   language={match[1]}
                   value={String(children).replace(/\n$/, "")}

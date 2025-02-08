@@ -1,6 +1,11 @@
+"use server";
 // lib/notion.ts
 import { Client } from "@notionhq/client";
 import { NotionToMarkdown } from "notion-to-md";
+import {
+  PageObjectResponse,
+  QueryDatabaseResponse,
+} from "@notionhq/client/build/src/api-endpoints";
 
 // 初始化 Notion 客戶端
 const notion = new Client({
@@ -44,26 +49,40 @@ function formatDate(dateString?: string): string {
 }
 
 // 從 Notion 頁面資料中萃取所需的 metadata
-const getPageMetaData = (page: any): PostMetaData => {
-  const getTags = (tags: any[]): string[] => {
+const getPageMetaData = (page: PageObjectResponse): PostMetaData => {
+  const getTags = (tags: { name: string }[]): string[] => {
     return tags.map((tag) => tag.name);
   };
 
   return {
     id: page.id,
-    title: page.properties.Name.title[0]?.plain_text || "No title",
-    tags: getTags(page.properties.Tags.multi_select || []),
-    description: page.properties.Description.rich_text[0]?.plain_text || "",
+    title:
+      "title" in page.properties.Name
+        ? page.properties.Name.title[0]?.plain_text || "No title"
+        : "No title",
+    tags:
+      "multi_select" in page.properties.Tags
+        ? getTags(page.properties.Tags.multi_select)
+        : [],
+    description:
+      "rich_text" in page.properties.Description
+        ? page.properties.Description.rich_text[0]?.plain_text || ""
+        : "",
     date: formatDate(
-      page.properties.Date.date?.start || page.properties.Date.last_edited_time
+      "date" in page.properties.Date && page.properties.Date.date
+        ? page.properties.Date.date.start || page.last_edited_time
+        : undefined
     ),
-    slug: page.properties.Slug.rich_text[0]?.plain_text || "",
+    slug:
+      "rich_text" in page.properties.Slug
+        ? page.properties.Slug.rich_text[0]?.plain_text || ""
+        : "",
   };
 };
 
 // 取得所有已發佈的文章
 export const getAllPublished = async (): Promise<PostMetaData[]> => {
-  const response = await notion.databases.query({
+  const response: QueryDatabaseResponse = await notion.databases.query({
     database_id: process.env.DATABASE_ID as string,
     filter: {
       property: "Published",
@@ -78,10 +97,10 @@ export const getAllPublished = async (): Promise<PostMetaData[]> => {
       },
     ],
   });
-  //   console.log("Notion 資料庫回傳結果:", JSON.stringify(response, null, 2));
 
-  const posts = response.results;
-  return posts.map((post: any) => getPageMetaData(post));
+  return response.results
+    .filter((post): post is PageObjectResponse => "properties" in post) // 過濾掉可能的 `partial support` responses
+    .map((post) => getPageMetaData(post));
 };
 
 // 取得單一文章（根據 slug）
@@ -91,7 +110,7 @@ export const getSinglePost = async (
   metadata: PostMetaData;
   markdown: string;
 }> => {
-  const response = await notion.databases.query({
+  const response: QueryDatabaseResponse = await notion.databases.query({
     database_id: process.env.DATABASE_ID as string,
     filter: {
       property: "Slug",
@@ -103,15 +122,18 @@ export const getSinglePost = async (
     },
   });
 
-  const page = response.results[0];
+  const page = response.results.find(
+    (result): result is PageObjectResponse => "properties" in result
+  );
+
   if (!page) {
     throw new Error("Post not found");
   }
+
   const metadata = getPageMetaData(page);
   const mdblocks = await n2m.pageToMarkdown(page.id);
-  //   console.log("mdblocks", mdblocks);
   const mdString = n2m.toMarkdownString(mdblocks);
-  console.log("md", mdString);
+
   return {
     metadata,
     markdown: mdString.parent,
