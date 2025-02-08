@@ -18,19 +18,17 @@ const CodeBlock: React.FC<{ language: string; value: string }> = ({
   );
 };
 
-interface PageProps {
-  params: {
-    slug: string;
-  };
-}
-
 interface MarkdownCodeProps {
   inline?: boolean;
   className?: string;
   children?: React.ReactNode;
 }
 
-export default async function PostPage({ params }: PageProps) {
+export default async function PostPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = await Promise.resolve(params);
   const post = await getSinglePost(slug);
 
