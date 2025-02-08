@@ -32,8 +32,7 @@ interface MarkdownCodeProps {
 }
 
 export default async function PostPage({ params }: PageProps) {
-  // 等待 params（雖然通常它是個同步物件，但這樣符合 Next.js 要求）
-  const resolvedParams = await Promise.resolve(params);
+  const resolvedParams = await params; // 這裡 await params 確保它是解析後的值
   const { slug } = resolvedParams;
   // 根據 slug 取得單一文章資料
   const post = await getSinglePost(slug);
